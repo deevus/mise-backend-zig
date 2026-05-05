@@ -37,4 +37,37 @@ function M.fetch_git(url, ref, destdir)
     cmd.exec(string.format("git clone --depth 1 --branch v%s %s %s", ref, url, destdir))
 end
 
+local function sha256_of(path)
+    local cmd = require("cmd")
+    local out = cmd.exec("shasum -a 256 " .. path)
+    return out:match("^(%x+)")
+end
+
+--- Download a tarball, verify its hash if expected is given, extract into destdir.
+--- @param url string
+--- @param expected_hash string|nil sha256 hex (lowercase) or nil for TOFU
+--- @param destdir string
+--- @return { actual_hash: string }
+function M.fetch_tarball(url, expected_hash, destdir)
+    local http = require("http")
+    local cmd  = require("cmd")
+
+    cmd.exec("mkdir -p " .. destdir)
+    local tmpfile = destdir .. "/source.tar"
+    http.download_file({ url = url }, tmpfile)
+
+    local actual = sha256_of(tmpfile)
+    if expected_hash and expected_hash ~= actual then
+        error(string.format(
+            "Hash mismatch for %s: expected %s, got %s. If intentional, update or remove the pin.",
+            url, expected_hash, actual
+        ))
+    end
+
+    cmd.exec("tar -xf " .. tmpfile .. " -C " .. destdir .. " --strip-components=1")
+    cmd.exec("rm -f " .. tmpfile)
+
+    return { actual_hash = actual }
+end
+
 return M
