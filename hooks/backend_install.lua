@@ -84,6 +84,20 @@ function PLUGIN:BackendInstall(ctx)
     if opts.optimize and opts.optimize ~= "" then
         table.insert(parts, "-Doptimize=" .. opts.optimize)
     end
+    -- Default to `--summary new` so users see what zig actually built (cached
+    -- re-installs stay quiet; fresh installs show every step). Skip if the user
+    -- has already chosen a --summary mode in build_args.
+    local user_set_summary = false
+    for _, arg in ipairs(opts.build_args) do
+        if arg == "--summary" or arg:match("^%-%-summary=") or arg:match("^%-%-summary$") then
+            user_set_summary = true
+            break
+        end
+    end
+    if not user_set_summary then
+        table.insert(parts, "--summary")
+        table.insert(parts, "new")
+    end
     for _, arg in ipairs(opts.build_args) do
         table.insert(parts, shquote(arg))
     end
