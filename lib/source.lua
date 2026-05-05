@@ -30,7 +30,9 @@ function M.fetch_git(url, ref, destdir)
     local ok, _ = pcall(function()
         cmd.exec(string.format("git clone --depth 1 --branch %s %s %s", ref, url, destdir))
     end)
-    if ok then return end
+    if ok then
+        return
+    end
 
     -- Fall back to v-prefixed tag (Zig projects commonly tag as `v0.1.0`).
     cmd.exec("rm -rf " .. destdir)
@@ -50,7 +52,7 @@ end
 --- @return { actual_hash: string }
 function M.fetch_tarball(url, expected_hash, destdir)
     local http = require("http")
-    local cmd  = require("cmd")
+    local cmd = require("cmd")
 
     cmd.exec("mkdir -p " .. destdir)
     local tmpfile = destdir .. "/source.tar"
@@ -58,10 +60,14 @@ function M.fetch_tarball(url, expected_hash, destdir)
 
     local actual = sha256_of(tmpfile)
     if expected_hash and expected_hash ~= actual then
-        error(string.format(
-            "Hash mismatch for %s: expected %s, got %s. If intentional, update or remove the pin.",
-            url, expected_hash, actual
-        ))
+        error(
+            string.format(
+                "Hash mismatch for %s: expected %s, got %s. If intentional, update or remove the pin.",
+                url,
+                expected_hash,
+                actual
+            )
+        )
     end
 
     cmd.exec("tar -xf " .. tmpfile .. " -C " .. destdir .. " --strip-components=1")

@@ -1,29 +1,13 @@
--- metadata.lua
--- Backend plugin metadata and configuration
--- Documentation: https://mise.jdx.dev/backend-plugin-development.html
-
 PLUGIN = { -- luacheck: ignore
-    -- Required: Plugin name (will be the backend name users reference)
-    name = "<BACKEND>",
-
-    -- Required: Plugin version (not the tool versions)
-    version = "1.0.0",
-
-    -- Required: Brief description of the backend and tools it manages
-    description = "A mise backend plugin for <BACKEND> tools",
-
-    -- Required: Plugin author/maintainer
-    author = "<GITHUB_USER>",
-
-    -- Optional: Plugin homepage/repository URL
-    homepage = "https://github.com/<GITHUB_USER>/<BACKEND>",
-
-    -- Optional: Plugin license
+    name = "zig",
+    version = "0.1.0",
+    description = "mise backend for building and installing Zig projects from git or tarballs",
+    author = "simonhartcher",
+    homepage = "https://github.com/simonhartcher/mise-backend-zig",
     license = "MIT",
-
-    -- Optional: Important notes for users
     notes = {
-        -- "Requires <BACKEND> to be installed on your system",
-        -- "This plugin manages tools from the <BACKEND> ecosystem"
+        "Requires a working Zig toolchain available via mise (e.g. `mise install zig@0.13.0`).",
+        "Builds projects with `zig build install --prefix <install_path>`.",
+        "Reads minimum_zig_version from build.zig.zon to pick the compiler.",
     },
 }

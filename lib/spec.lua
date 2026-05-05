@@ -4,7 +4,9 @@ local TARBALL_SUFFIXES = { "%.tar%.gz$", "%.tar%.xz$", "%.tar%.zst$", "%.tgz$" }
 
 local function looks_like_tarball(url)
     for _, pat in ipairs(TARBALL_SUFFIXES) do
-        if url:match(pat) then return true end
+        if url:match(pat) then
+            return true
+        end
     end
     return false
 end

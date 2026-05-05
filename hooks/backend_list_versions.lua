@@ -1,85 +1,38 @@
---- Lists available versions for a tool in this backend
---- Documentation: https://mise.jdx.dev/backend-plugin-development.html#backendlistversions
---- @param ctx {tool: string} Context (tool = the tool name requested)
---- @return {versions: string[]} Table containing list of available versions
+local spec = require("lib.spec")
+
 function PLUGIN:BackendListVersions(ctx)
-    local tool = ctx.tool
+    local s = spec.parse(ctx.tool)
 
-    -- Validate tool name
-    if not tool or tool == "" then
-        error("Tool name cannot be empty")
+    if s.kind == "tarball" then
+        return { versions = { "latest" } }
     end
 
-    -- Example implementations (choose/modify based on your backend):
-
-    -- Example 1: API-based version listing (like npm, pip, cargo)
-    local http = require("http")
-    local json = require("json")
-
-    -- Replace with your backend's API endpoint
-    local api_url = "https://api.<BACKEND>.org/packages/" .. tool .. "/versions"
-
-    local resp, err = http.get({
-        url = api_url,
-        -- headers = { ["Authorization"] = "Bearer " .. token } -- if needed
-    })
-
-    if err then
-        error("Failed to fetch versions for " .. tool .. ": " .. err)
-    end
-
-    if resp.status_code ~= 200 then
-        error("API returned status " .. resp.status_code .. " for " .. tool)
-    end
-
-    local data = json.decode(resp.body)
+    local cmd = require("cmd")
+    local out = cmd.exec("git ls-remote --tags " .. s.url)
     local versions = {}
-
-    -- Parse versions from API response (adjust based on your API structure)
-    if data.versions then
-        for _, version in ipairs(data.versions) do
-            table.insert(versions, version)
+    for ref in out:gmatch("refs/tags/([^%s%^]+)") do
+        if ref:match("^v?%d+%.%d+%.%d+") then
+            table.insert(versions, ref)
         end
     end
-
-    -- Example 2: Command-line based version listing
-    --[[
-    local cmd = require("cmd")
-
-    -- Replace with your backend's command to list versions
-    local command = "<BACKEND> search " .. tool .. " --versions"
-    local result = cmd.exec(command)
-
-    if not result or result:match("error") then
-        error("Failed to fetch versions for " .. tool)
-    end
-
-    local versions = {}
-    -- Parse command output to extract versions
-    for version in result:gmatch("[%d%.]+[%w%-]*") do
-        table.insert(versions, version)
-    end
-    --]]
-
-    -- Example 3: Registry file parsing
-    --[[
-    local file = require("file")
-
-    -- Replace with path to your backend's registry or manifest
-    local registry_path = "/path/to/<BACKEND>/registry/" .. tool .. ".json"
-
-    if not file.exists(registry_path) then
-        error("Tool " .. tool .. " not found in registry")
-    end
-
-    local content = file.read(registry_path)
-    local data = json.decode(content)
-    local versions = data.versions or {}
-    --]]
-
     if #versions == 0 then
-        error("No versions found for " .. tool)
+        table.insert(versions, "HEAD") -- escape hatch for repos without tags
     end
-
+    -- mise requires ascending semver order (oldest -> newest); see backend-plugin docs.
+    table.sort(versions, function(a, b)
+        local function nums(s)
+            local maj, min, pat = s:match("^v?(%d+)%.(%d+)%.(%d+)")
+            return tonumber(maj or 0), tonumber(min or 0), tonumber(pat or 0)
+        end
+        local am, an, ap = nums(a)
+        local bm, bn, bp = nums(b)
+        if am ~= bm then
+            return am < bm
+        end
+        if an ~= bn then
+            return an < bn
+        end
+        return ap < bp
+    end)
     return { versions = versions }
 end
