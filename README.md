@@ -16,7 +16,7 @@ Given a `build.zig` + `build.zig.zon` project, this backend:
 ## Install
 
 ```bash
-mise plugin install zig https://github.com/simonhartcher/mise-backend-zig
+mise plugin install zig https://github.com/deevus/mise-backend-zig
 ```
 
 ## Usage
