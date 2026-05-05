@@ -67,4 +67,15 @@ function M.resolve_opts(ctx_options, getenv)
     }
 end
 
+--- Resolve which zig version to use, per the design's tier rules.
+--- @param opts { zig_version: string|nil }
+--- @param zon_path string Path to build.zig.zon
+--- @return string|nil version string, or nil meaning "use the user's active zig"
+function M.resolve_zig_version(opts, zon_path)
+    if opts.zig_version and opts.zig_version ~= "" then
+        return opts.zig_version
+    end
+    return M.read_min_zig(zon_path)
+end
+
 return M
