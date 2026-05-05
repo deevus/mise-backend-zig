@@ -1,7 +1,7 @@
 .{
-    .name = .hello,
+    .name = "hello",
     .version = "0.1.0",
-    .fingerprint = 0x3610a686d5acd5e8,
+    .minimum_zig_version = "0.13.0",
     .dependencies = .{},
-    .paths = .{""},
+    .paths = .{ "build.zig", "build.zig.zon", "src" },
 }
