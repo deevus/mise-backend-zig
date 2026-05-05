@@ -25,7 +25,7 @@ function PLUGIN:BackendInstall(ctx)
     local opts = build.resolve_opts(ctx.options)
     local cmd = require("cmd")
     local file = require("file")
-    local log = require("log")
+    local log = require("lib.log") -- timestamped wrapper around vfox's log
     local srcdir = ctx.download_path -- mise creates and cleans this for us
 
     cmd.exec("mkdir -p " .. shquote(srcdir))
@@ -147,6 +147,7 @@ function PLUGIN:BackendInstall(ctx)
     -- Append `2>&1` so cmd.exec's capture sees stderr too (zig emits
     -- warnings, errors, and --summary output to stderr).
     local build_cmd = table.concat(parts, " ") .. " 2>&1"
+    log.info(string.format("building with %szig (in %s)", zig_argv_prefix, srcdir))
     local ok, build_out = pcall(cmd.exec, build_cmd)
     if build_out and type(build_out) == "string" and build_out:match("%S") then
         io.stderr:write(build_out)
