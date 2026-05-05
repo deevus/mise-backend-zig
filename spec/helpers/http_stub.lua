@@ -1,8 +1,9 @@
 local M = {}
 
-function M.install(handlers)
+function M.install(handlers, head_handlers)
     handlers = handlers or {}
-    local recorder = { downloads = {} }
+    head_handlers = head_handlers or {}
+    local recorder = { downloads = {}, heads = {} }
     local function record_download(opts, path)
         table.insert(recorder.downloads, { url = opts.url, path = path })
         local writer = handlers[opts.url]
@@ -21,6 +22,16 @@ function M.install(handlers)
         end,
         head = function()
             error("http.head not stubbed")
+        end,
+        -- Production code uses try_head (the error-returning variant) because
+        -- mise's async http.head can't be pcall'd. Returns canned resp or nil+err.
+        try_head = function(opts)
+            table.insert(recorder.heads, { url = opts.url })
+            local resp = head_handlers[opts.url]
+            if resp == nil then
+                return nil, "no canned head response for " .. tostring(opts.url)
+            end
+            return resp, nil
         end,
     }
     local saved = package.loaded["http"]

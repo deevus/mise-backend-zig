@@ -44,4 +44,39 @@ describe("lib.source.fetch_tarball", function()
             source.fetch_tarball("https://example.com/ok.tar.gz", "deadbeef", "/tmp/destdir")
         end)
     end)
+
+    it("probes Content-Length via HEAD before downloading", function()
+        rec_http.restore()
+        rec_http = http_stub.install({
+            ["https://example.com/ok.tar.gz"] = function(path)
+                local f = io.open(path, "w")
+                f:write(KNOWN_TEXT)
+                f:close()
+            end,
+        }, {
+            ["https://example.com/ok.tar.gz"] = {
+                status_code = 200,
+                headers = { ["content-length"] = "1234" },
+            },
+        })
+        source.fetch_tarball("https://example.com/ok.tar.gz", nil, "/tmp/destdir")
+        assert.are.equal(1, #rec_http.heads)
+        assert.are.equal("https://example.com/ok.tar.gz", rec_http.heads[1].url)
+        assert.are.equal(1, #rec_http.downloads)
+    end)
+
+    it("falls back gracefully when HEAD fails (no size, still downloads)", function()
+        -- No head_handlers passed → stub raises on http.head; the pcall in
+        -- probe_content_length swallows that and the download proceeds.
+        rec_http.restore()
+        rec_http = http_stub.install({
+            ["https://example.com/ok.tar.gz"] = function(path)
+                local f = io.open(path, "w")
+                f:write(KNOWN_TEXT)
+                f:close()
+            end,
+        })
+        source.fetch_tarball("https://example.com/ok.tar.gz", nil, "/tmp/destdir")
+        assert.are.equal(1, #rec_http.downloads)
+    end)
 end)
