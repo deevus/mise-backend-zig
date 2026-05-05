@@ -172,7 +172,8 @@ All errors call Lua `error()` with formatted messages; mise renders them as red 
 | **No zig at all** | `mise exec zig` fails with no zig configured | `No Zig installed. Install one first with: mise install zig@<ver>` |
 | **Zig too old** | `zig build` exits with version-mismatch error | re-emit zig's own message with hint: `The project requires zig >= X. You're using Y.` |
 | **Build failure** | `zig build install` non-zero, not version-related | `zig build failed:\n<last 50 lines of stderr>` (truncated to keep mise output usable) |
-| **Empty install dir** | build OK but `install_path/bin` empty | warn (not error) — some projects install to non-bin paths |
+| **Empty bin dir** | build OK but `install_path/<bin_path>` missing or empty | hard error: `Build succeeded but no binaries found in <dir>. Set the \`bin_path\` opt if your project installs to a non-standard location, or check that build.zig calls b.installArtifact() for your executables.` |
+| **filter_bins missing target** | `filter_bins` names a binary that wasn't built | hard error: `filter_bins: <name> not found in <bin_dir>` |
 
 No silent fallbacks except the zon-parse case.
 
@@ -207,7 +208,7 @@ Rewrite the existing stub to:
 
 ## Open questions
 
-1. **`ctx.opts` field name** — confirm against the version of mise's vfox runtime in use. If the field is named differently (e.g. `ctx.options`, `ctx.tool_opts`), `lib/build.lua::resolve_opts` adjusts to match.
+1. ~~**`ctx.opts` field name**~~ — **Resolved**: it's `ctx.options` (per https://mise.jdx.dev/backend-plugin-development.html#backendexecenv). The bundled `types/mise-plugin.lua:107-117` is stale and will be updated as part of implementation.
 2. **Tarball "version" listing** — currently always returns `["latest"]`. If users want versioned tarball aliases, that would need either a config-file convention or a registry — out of scope for v1.
 3. **Source-cache opt-in** — repeated installs of the same git ref re-clone every time. Adding an `MISE_ZIG_BACKEND_CACHE_DIR` opt-in is a small follow-up if it becomes a friction point.
 
