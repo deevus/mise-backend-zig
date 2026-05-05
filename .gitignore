@@ -1,3 +1,5 @@
 lua_modules/
 .luarocks/
 Injection.lua
+.zig-cache/
+zig-out/

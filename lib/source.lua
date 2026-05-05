@@ -56,7 +56,14 @@ function M.fetch_tarball(url, expected_hash, destdir)
 
     cmd.exec("mkdir -p " .. destdir)
     local tmpfile = destdir .. "/source.tar"
-    http.download_file({ url = url }, tmpfile)
+
+    -- Handle file:// URLs directly (local tarballs)
+    if url:match("^file://") then
+        local local_path = url:gsub("^file://", "")
+        cmd.exec("cp " .. local_path .. " " .. tmpfile)
+    else
+        http.download_file({ url = url }, tmpfile)
+    end
 
     local actual = sha256_of(tmpfile)
     if expected_hash and expected_hash ~= actual then

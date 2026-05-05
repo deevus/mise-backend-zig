@@ -1,42 +1,25 @@
 #!/usr/bin/env bash
-#MISE description="Run backend plugin tests - test plugin linking and basic functionality"
+#MISE description="Integration test: link plugin and exercise hooks against fixture"
 set -euo pipefail
 
-# Link the plugin for testing
-mise plugin link --force <BACKEND> .
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+FIXTURE_TGZ="$REPO_ROOT/test/fixtures/hello.tar.gz"
 
-# Clear cache to ensure fresh testing
-mise cache clear
+mise plugin link --force zig "$REPO_ROOT"
+mise cache clear || true
 
-# Test that the plugin can list tools (this should work even if no tools are available)
-echo "Testing plugin linking and basic functionality..."
+echo "==> tarball: install + run"
+SPEC="zig:tar+file://$FIXTURE_TGZ"
+mise install "${SPEC}@0.1.0"
+mise exec "${SPEC}@0.1.0" -- hello
 
-# Try to list available versions for a test tool
-# Note: This will likely fail until you implement the backend methods
-# Replace <TEST_TOOL> with a real tool name your backend supports
-TEST_TOOL="<TEST_TOOL>"
-
-echo "Testing version listing for ${TEST_TOOL}..."
-if mise ls-remote <BACKEND>:${TEST_TOOL} 2>/dev/null; then
-    echo "✓ Version listing works"
-else
-    echo "⚠ Version listing failed - implement backend_list_versions.lua for your backend"
+echo "==> tarball: hash mismatch must fail"
+# 1220 prefix + 64 hex chars = 68 total (Zig multibase hash format)
+MISMATCH_HASH="1220deadbeef00000000000000000000000000000000000000000000000000000000"
+if mise install "${SPEC}@${MISMATCH_HASH}" 2>/dev/null; then
+    echo "expected hash mismatch error"; exit 1
 fi
+echo "    OK (rejected as expected)"
 
-# Test installation if versions are available
-echo "Testing installation..."
-if mise install <BACKEND>:${TEST_TOOL}@latest 2>/dev/null; then
-    echo "✓ Installation works"
-    
-    # Test that the tool can be executed
-    if mise exec <BACKEND>:${TEST_TOOL}@latest -- ${TEST_TOOL} --version 2>/dev/null; then
-        echo "✓ Tool execution works"
-    else
-        echo "⚠ Tool execution failed - check backend_exec_env.lua implementation"
-    fi
-else
-    echo "⚠ Installation failed - implement backend_install.lua for your backend"
-fi
-
-echo "✓ Basic plugin structure tests completed"
-echo "Note: Replace <TEST_TOOL> with a real tool and implement the backend methods"
+# git path is exercised manually unless a network-safe public repo with tags is chosen.
+echo "==> all integration assertions passed"
