@@ -1,8 +1,23 @@
 # Zig Project Backend — Design
 
-**Status:** design
-**Date:** 2026-05-05
+**Status:** **executed** — implementation shipped 2026-05-05; CI green on Ubuntu + macOS at https://github.com/deevus/mise-zig.
+**Date (designed):** 2026-05-05
 **Scope:** Replace the unmodified `mise-backend-plugin-template` content with a working `zig:` backend that builds & installs Zig projects (anything with `build.zig` + `build.zig.zon`) from git repos or pristine tarballs, automatically selecting the right `zig` compiler.
+
+## Execution summary
+
+The design was implemented in full and shipped. The user-facing behavior matches the design's intent. The following changes were made during implementation as the design met reality — recorded here for future readers, not as separate ADRs:
+
+- **Lua 5.1** confirmed (mise's vfox embeds `mlua` with the `lua51` feature). The `mise.toml` `lua = "5.1"` was added explicitly so dev environment matches runtime.
+- **`build_flags` (string) → `build_args` (Lua array)** — to handle paths containing spaces. Each token is POSIX-quoted at build-command-construction time. Env-var fallback whitespace-splits with a documented limitation.
+- **`bin_path` + `filter_bins` opts added** — match the GitHub backend's vocabulary and semantics. `filter_bins` symlinks selected executables into `<install_path>/.mise-bins/`. Missing/empty bin dir is a hard error.
+- **`trust_mise_toml` opt added** — handles real-world Zig projects that ship their own `mise.toml`. Default `false` deletes the project's mise config from the source tree before building (so mise commands don't trip over untrusted config). Opt-in `true` runs `mise trust <srcdir>` and inserts a new resolution tier (project's mise.toml zig pin) between `opts.zig_version` and `minimum_zig_version`.
+- **Resolution chain is now four tiers** (was three in the original design): `opts.zig_version` > project's `mise.toml` (when trusted) > `build.zig.zon` `minimum_zig_version` > active zig.
+- **vfox built-ins used directly** wherever possible: `file.exists`, `file.symlink`, `file.join_path`, `semver.sort`, `log.info`, `http.try_download_file`. Avoided reinventing.
+- **Build output surfacing** — uses `cmd.exec` (captures, gives zig a non-TTY pipe so its progress bar doesn't fight mise's progress UI) plus `io.stderr:write` of the captured output, which writes direct to the user's terminal (bypasses mise's logger). Default `--summary new` is appended to the zig build command unless the user already specified `--summary` in `build_args`.
+- **Plan file** at [`docs/plans/2026-05-05-zig-project-backend-plan.md`](2026-05-05-zig-project-backend-plan.md) drove the initial implementation. Two parallel implementations (in `jj` workspaces named `pi` and `dirac`) were merged into the default workspace; subsequent fix-up commits hardened shell-quoting, replaced reinvented helpers with vfox built-ins, fixed git tag deduplication, surfaced build output, and added the trust-mise.toml feature.
+
+The rest of this document is the original design as-written. Read it for the rationale; consult the source for current behavior.
 
 ## Purpose
 
@@ -208,9 +223,14 @@ Rewrite the existing stub to:
 
 ## Open questions
 
-1. ~~**`ctx.opts` field name**~~ — **Resolved**: it's `ctx.options` (per https://mise.jdx.dev/backend-plugin-development.html#backendexecenv). The bundled `types/mise-plugin.lua:107-117` is stale and will be updated as part of implementation.
-2. **Tarball "version" listing** — currently always returns `["latest"]`. If users want versioned tarball aliases, that would need either a config-file convention or a registry — out of scope for v1.
-3. **Source-cache opt-in** — repeated installs of the same git ref re-clone every time. Adding an `MISE_ZIG_BACKEND_CACHE_DIR` opt-in is a small follow-up if it becomes a friction point.
+1. ~~**`ctx.opts` field name**~~ — **Resolved**: it's `ctx.options`. `types/mise-plugin.lua` updated during implementation.
+2. ~~**Tarball "version" listing**~~ — **Shipped as designed**: returns `["latest"]`. mise's install path doesn't validate `ctx.version` against the list (verified in `crates/vfox/src/backend/vfox.rs`), so any `@<anything>` works for tarballs. Versioned aliases remain out of scope.
+3. **Source-cache opt-in** — still open. Repeated installs of the same git ref re-clone every time. No `MISE_ZIG_BACKEND_CACHE_DIR` opt added yet; revisit if it becomes a friction point.
+
+### New open questions surfaced during execution
+
+4. **Backend lockfile support** — `mise.lock` doesn't currently store backend-plugin tarball hashes (verified in mise source: `vfox.rs::supports_lockfile_url()` returns `false` for backend plugins). The TOFU pin promise is honest only at install-time; subsequent installs re-compute the hash but don't compare against a persisted value. Upstream has a `TODO: expose a plugin hook (e.g. BackendLockInfo)` comment. Track via mise GitHub Discussions.
+5. **Strict project-mise.toml zig pin** — when `trust_mise_toml = true`, Tier 2 uses `mise current zig` from srcdir. If the project's mise.toml doesn't pin zig but the user's global config does, the global value wins over `minimum_zig_version`. To strictly use only the project's literal pin, we'd need to TOML-parse the project's mise.toml ourselves. Acceptable trade-off for v1.
 
 ## Implementation order
 
