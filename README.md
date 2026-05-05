@@ -1,4 +1,4 @@
-# mise-backend-zig-build
+# mise-zig-build
 
 A [mise](https://mise.jdx.dev) backend plugin for building and installing Zig projects from git or tarballs.
 
