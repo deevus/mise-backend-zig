@@ -1,327 +1,153 @@
-# mise backend plugin template
+# mise-backend-zig
 
-This is a GitHub template for building a mise backend plugin using the vfox-style backend architecture.
+A [mise](https://mise.jdx.dev) backend plugin for building and installing Zig projects from git or tarballs.
 
-## What are Backend Plugins?
+Given a `build.zig` + `build.zig.zon` project, this backend:
+1. Fetches source from a git URL or tarball
+2. Resolves which Zig compiler version to use
+3. Runs `zig build install --prefix <install_path>`
+4. Exposes the built executables on `PATH`
 
-Backend plugins in mise extend the standard tool plugin system to manage **multiple tools** using the `plugin:tool` format. They're perfect for:
+## Prerequisites
 
-- **Package managers** (npm, pip, cargo, gem)
-- **Tool families** (multiple related tools from one ecosystem) 
-- **Custom installations** that need to manage many tools
+- **mise** with experimental backends enabled: `mise settings set experimental true` or `MISE_EXPERIMENTAL=1`
+- A working Zig toolchain available via mise (auto-installed if needed)
 
-Unlike tool plugins that manage one tool, backend plugins can install and manage multiple tools like `npm:prettier`, `npm:eslint`, `cargo:ripgrep`, etc.
+## Install
 
-## Using this template
-
-### Option 1: Use GitHub's template feature (recommended)
-1. Click "Use this template" button on GitHub
-2. Name your repository (e.g., `mise-mybackend` or `vfox-mybackend`)
-3. Clone your new repository
-4. Follow the setup instructions below
-
-### Option 2: Clone and modify
 ```bash
-git clone https://github.com/jdx/mise-backend-plugin-template mise-mybackend
-cd mise-mybackend
-rm -rf .git
-git init
+mise plugin install zig https://github.com/simonhartcher/mise-backend-zig
 ```
 
-## Setup Instructions
+## Usage
 
-### 1. Replace placeholders
+### From a git repository
 
-Search and replace these placeholders throughout the project:
-- `<BACKEND>` → your backend name (e.g., `npm`, `cargo`, `pip`)
-- `<GITHUB_USER>` → your GitHub username or organization  
-- `<TEST_TOOL>` → a real tool name your backend can install (for testing)
-
-Files to update:
-- `metadata.lua` - Update name, description, author, homepage
-- `hooks/*.lua` - Replace placeholders and implement your backend logic
-- `mise-tasks/test` - Update test tool name and commands
-- `README.md` - Update this file with your backend's information
-
-### 2. Implement the backend hooks
-
-Backend plugins require three main hooks:
-
-#### `hooks/backend_list_versions.lua`
-Lists available versions for a tool in your backend.
-
-```lua
-function PLUGIN:BackendListVersions(ctx)
-    local tool = ctx.tool
-    -- Your logic to fetch versions for the tool
-    -- Return: {versions = {"1.0.0", "1.1.0", "2.0.0"}}
-end
-```
-
-**Examples**:
-- **API-based**: Query npm registry, PyPI, crates.io APIs
-- **Command-based**: Run `npm view <tool> versions`, `pip index versions <tool>`
-- **File-based**: Parse registry files or manifests
-
-#### `hooks/backend_install.lua` 
-Installs a specific version of a tool.
-
-```lua
-function PLUGIN:BackendInstall(ctx)
-    local tool = ctx.tool
-    local version = ctx.version  
-    local install_path = ctx.install_path
-    -- Your logic to install the tool
-    -- Return: {}
-end
-```
-
-**Examples**:
-- **Package manager**: `npm install <tool>@<version>`, `pip install <tool>==<version>`
-- **Download & extract**: Download binary/archive and extract to install_path
-- **Build from source**: Clone repository, checkout version, build and install
-
-#### `hooks/backend_exec_env.lua`
-Sets up environment variables for a tool.
-
-```lua
-function PLUGIN:BackendExecEnv(ctx)
-    local install_path = ctx.install_path
-    -- Your logic to set up environment
-    -- Return: {env_vars = {{key = "PATH", value = install_path .. "/bin"}}}
-end
-```
-
-**Examples**:
-- **Basic**: Add `bin/` directory to PATH
-- **Complex**: Set tool-specific environment variables, library paths
-- **Ecosystem-specific**: Like `node_modules/.bin` for npm, site-packages for Python
-
-### 3. Platform considerations
-
-Your backend may need to handle different operating systems:
-
-```lua
--- Available in all hooks via RUNTIME object
-if RUNTIME.osType == "Darwin" then
-    -- macOS-specific logic
-elseif RUNTIME.osType == "Linux" then  
-    -- Linux-specific logic
-elseif RUNTIME.osType == "Windows" then
-    -- Windows-specific logic
-end
-```
-
-### 4. Error handling
-
-Provide meaningful error messages:
-
-```lua
-function PLUGIN:BackendListVersions(ctx)
-    local tool = ctx.tool
-    
-    if not tool or tool == "" then
-        error("Tool name cannot be empty")
-    end
-    
-    -- ... your implementation ...
-    
-    if #versions == 0 then
-        error("No versions found for " .. tool)
-    end
-    
-    return {versions = versions}
-end
-```
-
-## Development Workflow
-
-### Setting up development environment
-
-1. Install pre-commit hooks (optional but recommended):
 ```bash
-hk install
+# Use a tagged release
+mise install zig:git+https://github.com/zigzap/zap@v0.1.0
+
+# Run a tool from the project
+mise exec zig:git+https://github.com/zigzap/zap@v0.1.0 -- myapp --help
 ```
 
-This sets up automatic linting and formatting on git commits.
+Omitting the `git+` prefix also works for non-tarball URLs:
 
-### Local Testing
-
-1. Link your plugin for development:
 ```bash
-mise plugin link --force <BACKEND> .
+mise install zig:https://github.com/zigzap/zap@v0.1.0
 ```
 
-2. Test version listing:
+### From a tarball (with TOFU hash verification)
+
 ```bash
-mise ls-remote <BACKEND>:<some-tool>
+# Install without hash verification
+mise install zig:tar+https://example.com/myapp-1.0.0.tar.gz@0.1.0
+
+# Install with Zig multibase hash verification
+mise install zig:tar+https://example.com/myapp-1.0.0.tar.gz@1220abc123...def
 ```
 
-3. Test installation:
-```bash
-mise install <BACKEND>:<some-tool>@latest
+When a Zig multibase hash (`1220` + 64 hex chars) is provided as the version, the downloaded tarball's SHA-256 is verified against it. Without a hash, the download is accepted on first use (TOFU).
+
+### In mise.toml
+
+```toml
+[tools]
+"zig:git+https://github.com/zigzap/zap" = "v0.1.0"
 ```
 
-4. Test execution:
-```bash
-mise exec <BACKEND>:<some-tool>@latest -- <some-tool> --version
+## Options
+
+Options can be set via `mise.toml` tool-specific config or environment variables. Precedence: `ctx.options` > env var > default.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `zig_version` | string | `nil` (auto-detect) | Zig compiler version to use. Overrides `minimum_zig_version` from `build.zig.zon`. |
+| `optimize` | string | `nil` | Build optimization mode (e.g. `ReleaseSafe`, `ReleaseFast`, `ReleaseSmall`). Passed as `-Doptimize=<value>`. |
+| `build_args` | array | `[]` | Additional arguments passed to `zig build install`. Use array syntax in mise.toml. |
+| `auto_install_zig` | bool | `true` | Automatically install the resolved Zig version if not already present. |
+| `bin_path` | string | `"bin"` | Directory under install path containing executables. |
+| `filter_bins` | array | `[]` | When set, only symlink these specific executables into `<install_path>/.mise-bins/` instead of exposing the entire `bin_path`. |
+
+### mise.toml example
+
+```toml
+[tools]
+"zig:git+https://github.com/user/project" = "v1.0.0"
+
+[tools."zig:git+https://github.com/user/project".options]
+zig_version = "0.14.0"
+optimize = "ReleaseFast"
+build_args = ["-Dstrip=true"]
+bin_path = "bin"
+filter_bins = ["myapp"]
 ```
 
-5. Run tests:
+### Environment variable equivalents
+
+```
+MISE_ZIG_BACKEND_ZIG_VERSION=0.14.0
+MISE_ZIG_BACKEND_OPTIMIZE=ReleaseFast
+MISE_ZIG_BACKEND_BUILD_ARGS="-Dstrip=true -Dcpu=native"
+MISE_ZIG_BACKEND_AUTO_INSTALL_ZIG=false
+MISE_ZIG_BACKEND_BIN_PATH=bin
+MISE_ZIG_BACKEND_FILTER_BINS="myapp helper"
+```
+
+Note: array env vars are whitespace-split, which means elements cannot contain spaces.
+
+## How it works
+
+The backend implements three hooks:
+
+- **`BackendListVersions`**: For git sources, lists tags matching semver (`v?X.Y.Z`) via `git ls-remote --tags`. For tarballs, returns `["latest"]`.
+- **`BackendInstall`**: Fetches source, resolves Zig version, builds and installs. Zig version resolution follows a tiered approach:
+  1. `ctx.options.zig_version` (from mise.toml)
+  2. `minimum_zig_version` from `build.zig.zon`
+  3. Active zig (set by `mise use zig@...`)
+- **`BackendExecEnv`**: Exposes the binary directory on `PATH`, respecting `bin_path` and `filter_bins`.
+
+### Ref resolution
+
+Git refs try `--branch <ref>` first, falling back to `--branch v<ref>` for projects that tag as `vX.Y.Z` but are referenced without the `v` prefix. SHA-shaped refs use plain clone + checkout. `HEAD` clones the default branch.
+
+## Development
+
 ```bash
+# Bootstrap test dependencies
+mise run test:setup
+
+# Run unit tests
+mise run test:unit
+
+# Run integration test (links plugin, builds vendored fixture)
 mise run test
-```
 
-6. Run linting:
-```bash
-mise run lint
-```
+# Format code
+mise run format
 
-7. Run full CI suite:
-```bash
+# Run all CI checks
 mise run ci
-```
-
-### Code Quality
-
-This template uses [hk](https://hk.jdx.dev) for modern linting and pre-commit hooks:
-
-- **Automatic formatting**: `stylua` formats Lua code
-- **Static analysis**: `luacheck` catches Lua issues  
-- **GitHub Actions linting**: `actionlint` validates workflows
-- **Pre-commit hooks**: Runs all checks automatically on git commit
-
-Manual commands:
-```bash
-hk check      # Run all linters (same as mise run lint)
-hk fix        # Run linters and auto-fix issues
 ```
 
 ### Debugging
 
-Enable debug output:
 ```bash
-mise --debug install <BACKEND>:<tool>@<version>
+mise --debug install zig:tar+file://./test/fixtures/hello.tar.gz@0.1.0
 ```
 
-## Files
+### Troubleshooting
 
-- `metadata.lua` – Backend plugin metadata and configuration
-- `hooks/backend_list_versions.lua` – Lists available versions for tools
-- `hooks/backend_install.lua` – Installs specific versions of tools
-- `hooks/backend_exec_env.lua` – Sets up environment variables for tools
-- `.github/workflows/ci.yml` – GitHub Actions CI/CD pipeline
-- `mise.toml` – Development tools and configuration
-- `mise-tasks/` – Task scripts for testing
-- `hk.pkl` – Modern linting and pre-commit hook configuration
-- `.luacheckrc` – Lua linting configuration
-- `stylua.toml` – Lua formatting configuration
+- **"no minimum_zig_version declared"**: The backend will use your active zig. Set `zig_version` or add `minimum_zig_version` to your `build.zig.zon`.
+- **"Hash mismatch"**: The tarball content changed since the hash was recorded (TOFU pin changed). Update the version hash or remove the hash pin.
+- **"No binaries found"**: The build succeeded but no files were installed to `bin_path`. Set `bin_path` if your project installs to a different location, or check that your `build.zig` calls `b.installArtifact()`.
+- **Installation fails on macOS/Linux**: Ensure the Zig compiler version you need is available via mise: `mise install zig@<version>`.
 
-## Backend Examples
+## Status
 
-### Package Manager Backend (npm-style)
-```lua
--- backend_list_versions.lua
-function PLUGIN:BackendListVersions(ctx)
-    local cmd = require("cmd")
-    local json = require("json")
-    local result = cmd.exec("mypm view " .. ctx.tool .. " versions --json")
-    return {versions = json.decode(result)}
-end
+This is a **work-in-progress** custom backend for mise. Custom backends are experimental in mise — enable them with `mise settings set experimental true` or `MISE_EXPERIMENTAL=1`.
 
--- backend_install.lua  
-function PLUGIN:BackendInstall(ctx)
-    local cmd = require("cmd")
-    cmd.exec("mypm install " .. ctx.tool .. "@" .. ctx.version .. " --prefix " .. ctx.install_path)
-    return {}
-end
-
--- backend_exec_env.lua
-function PLUGIN:BackendExecEnv(ctx)
-    return {
-        env_vars = {
-            {key = "PATH", value = ctx.install_path .. "/bin"}
-        }
-    }
-end
-```
-
-### Binary Download Backend (GitHub releases-style)
-```lua
--- backend_list_versions.lua
-function PLUGIN:BackendListVersions(ctx)
-    local http = require("http")
-    local json = require("json")
-    local resp = http.get({url = "https://api.github.com/repos/owner/" .. ctx.tool .. "/releases"})
-    local releases = json.decode(resp.body)
-    local versions = {}
-    for _, release in ipairs(releases) do
-        table.insert(versions, release.tag_name:gsub("^v", ""))
-    end
-    return {versions = versions}
-end
-
--- backend_install.lua
-function PLUGIN:BackendInstall(ctx)
-    local platform = RUNTIME.osType:lower()
-    local arch = RUNTIME.archType
-    local url = "https://github.com/owner/" .. ctx.tool .. "/releases/download/v" .. ctx.version .. 
-                "/" .. ctx.tool .. "-" .. platform .. "-" .. arch .. ".tar.gz"
-    
-    local http = require("http")
-    local temp_file = ctx.install_path .. "/tool.tar.gz"
-    http.download({url = url, output = temp_file})
-    
-    local cmd = require("cmd")
-    cmd.exec("cd " .. ctx.install_path .. " && tar -xzf tool.tar.gz")
-    cmd.exec("rm " .. temp_file)
-    return {}
-end
-```
-
-## Real-World Examples
-
-- [vfox-npm](https://github.com/jdx/vfox-npm) - Backend for npm packages
-- Study existing mise backends: npm, cargo, pip, gem
-
-## Context Variables Reference
-
-### BackendListVersions Context
-| Variable | Type | Description | Example |
-|----------|------|-------------|---------|
-| `ctx.tool` | string | Tool name | `"prettier"` |
-
-### BackendInstall and BackendExecEnv Context  
-| Variable | Type | Description | Example |
-|----------|------|-------------|---------|
-| `ctx.tool` | string | Tool name | `"prettier"` |
-| `ctx.version` | string | Tool version | `"3.0.0"` |
-| `ctx.install_path` | string | Installation directory | `"/home/user/.local/share/mise/installs/npm/prettier/3.0.0"` |
-
-### Available Lua Modules
-
-Backend plugins have access to these built-in modules:
-
-- `cmd` - Execute shell commands
-- `http` - HTTP client for downloads and API calls  
-- `json` - JSON parsing and encoding
-- `file` - File system operations
-
-## Publishing
-
-1. Ensure all tests pass: `mise run ci`
-2. Create a GitHub repository for your plugin
-3. Push your code
-4. Test with: `mise plugin install mybackend https://github.com/user/mise-mybackend`
-5. (Optional) Request to transfer to [mise-plugins](https://github.com/mise-plugins) organization
-6. Add to the [mise registry](https://github.com/jdx/mise/blob/main/registry.toml) via PR
-
-## Documentation
-
-- [Backend Plugin Development](https://mise.jdx.dev/backend-plugin-development.html) - Complete guide
-- [Backend Architecture](https://mise.jdx.dev/dev-tools/backend_architecture.html) - How backends work
-- [Lua modules reference](https://mise.jdx.dev/plugin-lua-modules.html) - Available modules
-- [mise-plugins organization](https://github.com/mise-plugins) - Community plugins
+See [docs/plans/2026-05-05-zig-project-backend-design.md](docs/plans/2026-05-05-zig-project-backend-design.md) for the design document.
 
 ## License
 
