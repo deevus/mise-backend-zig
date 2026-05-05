@@ -33,6 +33,12 @@ function M.parse(tool)
         return { kind = "tarball", url = rest, hash = nil }
     end
 
+    -- Shorthand: host.tld/user/repo[/subpath] → git+https
+    local shorthand_host, shorthand_path = tool:match("^([a-zA-Z0-9%.%-]+%.[a-zA-Z]+)/(.+)$")
+    if shorthand_host then
+        return { kind = "git", url = "https://" .. shorthand_host .. "/" .. shorthand_path, hash = nil }
+    end
+
     if not looks_like_url(tool) then
         error("Invalid zig backend spec: '" .. tool .. "'. Expected git+<url>, tar+<url>, or a URL.")
     end
