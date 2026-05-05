@@ -1,0 +1,5 @@
+.{
+    .minimum_zig_version = "0.13.0",
+    .extra = "minimum_zig_version = oops",
+    .also = .{ .minimum_zig_version = "0.99.0" },
+}
