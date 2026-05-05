@@ -1,4 +1,4 @@
-# mise-backend-zig
+# mise-backend-zig-build
 
 A [mise](https://mise.jdx.dev) backend plugin for building and installing Zig projects from git or tarballs.
 
@@ -20,7 +20,7 @@ Given a `build.zig` + `build.zig.zon` project, this backend:
 ## Install
 
 ```bash
-mise plugin install zig https://github.com/deevus/mise-zig
+mise plugin install zig-build https://github.com/deevus/mise-zig-build
 ```
 
 ## Usage
@@ -29,26 +29,26 @@ mise plugin install zig https://github.com/deevus/mise-zig
 
 ```bash
 # Use a tagged release
-mise install zig:git+https://github.com/zigzap/zap@v0.1.0
+mise install zig-build:git+https://github.com/zigzap/zap@v0.1.0
 
 # Run a tool from the project
-mise exec zig:git+https://github.com/zigzap/zap@v0.1.0 -- myapp --help
+mise exec zig-build:git+https://github.com/zigzap/zap@v0.1.0 -- myapp --help
 ```
 
 Omitting the `git+` prefix also works for non-tarball URLs:
 
 ```bash
-mise install zig:https://github.com/zigzap/zap@v0.1.0
+mise install zig-build:https://github.com/zigzap/zap@v0.1.0
 ```
 
 ### From a tarball (with TOFU hash verification)
 
 ```bash
 # Install without hash verification
-mise install zig:tar+https://example.com/myapp-1.0.0.tar.gz@0.1.0
+mise install zig-build:tar+https://example.com/myapp-1.0.0.tar.gz@0.1.0
 
 # Install with Zig multibase hash verification
-mise install zig:tar+https://example.com/myapp-1.0.0.tar.gz@1220abc123...def
+mise install zig-build:tar+https://example.com/myapp-1.0.0.tar.gz@1220abc123...def
 ```
 
 When a Zig multibase hash (`1220` + 64 hex chars) is provided as the version, the downloaded tarball's SHA-256 is verified against it. Without a hash, the download is accepted on first use (TOFU).
@@ -57,7 +57,7 @@ When a Zig multibase hash (`1220` + 64 hex chars) is provided as the version, th
 
 ```toml
 [tools]
-"zig:git+https://github.com/zigzap/zap" = "v0.1.0"
+"zig-build:git+https://github.com/zigzap/zap" = "v0.1.0"
 ```
 
 ## Options
@@ -77,9 +77,9 @@ Options can be set via `mise.toml` tool-specific config or environment variables
 
 ```toml
 [tools]
-"zig:git+https://github.com/user/project" = "v1.0.0"
+"zig-build:git+https://github.com/user/project" = "v1.0.0"
 
-[tools."zig:git+https://github.com/user/project".options]
+[tools."zig-build:git+https://github.com/user/project".options]
 zig_version = "0.14.0"
 optimize = "ReleaseFast"
 build_args = ["-Dstrip=true"]
@@ -140,7 +140,7 @@ mise run ci
 ### Debugging
 
 ```bash
-mise --debug install zig:tar+file://./test/fixtures/hello.tar.gz@0.1.0
+mise --debug install zig-build:tar+file://./test/fixtures/hello.tar.gz@0.1.0
 ```
 
 ### Troubleshooting
