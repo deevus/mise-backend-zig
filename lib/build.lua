@@ -34,24 +34,22 @@ function M.resolve_opts(ctx_options, getenv)
     end
 
     local function pick_bool(key, env_name, default)
+        local function falsey(x)
+            local s = tostring(x)
+            return s == "0" or s:lower() == "false" or s == ""
+        end
         local v = opts[key]
         if v ~= nil then
             if type(v) == "boolean" then
                 return v
             end
-            if v == "0" or v:lower() == "false" or v == "" then
-                return false
-            end
-            return true
+            return not falsey(v)
         end
         local e = getenv(env_name)
         if e == nil then
             return default
         end
-        if e == "0" or e:lower() == "false" or e == "" then
-            return false
-        end
-        return true
+        return not falsey(e)
     end
 
     --- Read an array opt: ctx.options gives a Lua sequence; env var falls back
@@ -94,6 +92,19 @@ function M.resolve_zig_version(opts, zon_path)
         return opts.zig_version
     end
     return M.read_min_zig(zon_path)
+end
+
+--- Build the actionable error message shown when `bin_path` is missing or empty
+--- after a successful build. Pure function so it can be unit-tested directly.
+--- @param bin_dir string The resolved bin directory path
+--- @return string error message
+function M.empty_bin_error(bin_dir)
+    return string.format(
+        "Build succeeded but no binaries found in %s. "
+            .. "Set the `bin_path` opt if your project installs to a non-standard location, "
+            .. "or check that build.zig calls b.installArtifact() for your executables.",
+        bin_dir
+    )
 end
 
 return M

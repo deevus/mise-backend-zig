@@ -1,4 +1,5 @@
 local spec = require("lib.spec")
+local sh = require("lib.sh")
 
 function PLUGIN:BackendListVersions(ctx)
     local s = spec.parse(ctx.tool)
@@ -8,7 +9,7 @@ function PLUGIN:BackendListVersions(ctx)
     end
 
     local cmd = require("cmd")
-    local out = cmd.exec("git ls-remote --tags " .. s.url)
+    local out = cmd.exec("git ls-remote --tags " .. sh.shquote(s.url))
     local versions = {}
     for ref in out:gmatch("refs/tags/([^%s%^]+)") do
         if ref:match("^v?%d+%.%d+%.%d+") then

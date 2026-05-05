@@ -1,21 +1,29 @@
 local spec = require("lib.spec")
 local source = require("lib.source")
 local build = require("lib.build")
+local sh = require("lib.sh")
+local shquote = sh.shquote
 
 local function looks_like_zig_hash(s)
     -- Zig multibase hashes start with "1220" (sha256 multihash prefix), 68 hex chars total.
     return s and s:match("^1220%x+$") and #s == 68
 end
 
---- POSIX-shell-quote a single token: wrap in single quotes, escape internal '.
-local function shquote(s)
-    return "'" .. s:gsub("'", "'\\''") .. "'"
+local function dir_has_entries(path)
+    -- Probe via shell: ls returns nothing for missing/empty dirs. Use 2>/dev/null
+    -- so a missing path doesn't throw on cmd.exec implementations that raise on non-zero.
+    local cmd = require("cmd")
+    local ok, out = pcall(cmd.exec, "ls -1 " .. shquote(path) .. " 2>/dev/null")
+    if not ok then
+        return false
+    end
+    return out:match("%S") ~= nil
 end
 
-local function dir_has_entries(path)
-    -- Cheap probe via shell: ls returns non-zero if path is missing.
+local function path_exists(path)
+    -- Robust existence check that doesn't depend on cmd.exec's non-zero-exit behavior.
     local cmd = require("cmd")
-    local ok, out = pcall(cmd.exec, "ls -1 " .. shquote(path))
+    local ok, out = pcall(cmd.exec, "ls -d " .. shquote(path) .. " 2>/dev/null")
     if not ok then
         return false
     end
@@ -81,14 +89,7 @@ function PLUGIN:BackendInstall(ctx)
     -- Verify bin_path exists and is non-empty
     local bin_dir = ctx.install_path .. "/" .. opts.bin_path
     if not dir_has_entries(bin_dir) then
-        error(
-            string.format(
-                "Build succeeded but no binaries found in %s. "
-                    .. "Set the `bin_path` opt if your project installs to a non-standard location, "
-                    .. "or check that build.zig calls b.installArtifact() for your executables.",
-                bin_dir
-            )
-        )
+        error(build.empty_bin_error(bin_dir))
     end
 
     -- Optional: filter_bins symlinks
@@ -99,8 +100,7 @@ function PLUGIN:BackendInstall(ctx)
         for _, bname in ipairs(opts.filter_bins) do
             local src = bin_dir .. "/" .. bname
             local dst = mise_bins .. "/" .. bname
-            local ok = pcall(cmd.exec, "test -e " .. shquote(src))
-            if not ok then
+            if not path_exists(src) then
                 error(string.format("filter_bins: %s not found in %s", bname, bin_dir))
             end
             cmd.exec(string.format("ln -sf %s %s", shquote(src), shquote(dst)))

@@ -4,7 +4,7 @@ import "package://github.com/jdx/hk/releases/download/v1.18.1/hk@1.18.1#/Builtin
 local linters = new Mapping<String, Step> {
     ["lua-check"] {
         glob = "**/*.lua"
-        check = "lua-language-server --check ."
+        check = "lua-language-server --check hooks/ --check lib/ --check metadata.lua"
     }
     ["stylua"] {
         glob = "**/*.lua"

@@ -1,3 +1,6 @@
+local sh = require("lib.sh")
+local shq = sh.shquote
+
 local M = {}
 
 local function is_sha_ref(s)
@@ -16,32 +19,33 @@ function M.fetch_git(url, ref, destdir)
     local cmd = require("cmd")
 
     if is_sha_ref(ref) then
-        cmd.exec(string.format("git clone %s %s", url, destdir))
-        cmd.exec(string.format("git -C %s checkout %s", destdir, ref))
+        cmd.exec("git clone " .. shq(url) .. " " .. shq(destdir))
+        cmd.exec("git -C " .. shq(destdir) .. " checkout " .. shq(ref))
         return
     end
 
     if ref == "HEAD" then
-        cmd.exec(string.format("git clone %s %s", url, destdir))
+        cmd.exec("git clone " .. shq(url) .. " " .. shq(destdir))
         return
     end
 
     -- try --branch <ref>, fall back to --branch v<ref>
     local ok, _ = pcall(function()
-        cmd.exec(string.format("git clone --depth 1 --branch %s %s %s", ref, url, destdir))
+        cmd.exec("git clone --depth 1 --branch " .. shq(ref) .. " " .. shq(url) .. " " .. shq(destdir))
     end)
     if ok then
         return
     end
 
     -- Fall back to v-prefixed tag (Zig projects commonly tag as `v0.1.0`).
-    cmd.exec("rm -rf " .. destdir)
-    cmd.exec(string.format("git clone --depth 1 --branch v%s %s %s", ref, url, destdir))
+    cmd.exec("rm -rf " .. shq(destdir))
+    cmd.exec("git clone --depth 1 --branch " .. shq("v" .. ref) .. " " .. shq(url) .. " " .. shq(destdir))
 end
 
 local function sha256_of(path)
     local cmd = require("cmd")
-    local out = cmd.exec("shasum -a 256 " .. path)
+    -- shasum is on macOS by default and ships with coreutils on Linux. CI runs both.
+    local out = cmd.exec("shasum -a 256 " .. shq(path))
     return out:match("^(%x+)")
 end
 
@@ -54,13 +58,13 @@ function M.fetch_tarball(url, expected_hash, destdir)
     local http = require("http")
     local cmd = require("cmd")
 
-    cmd.exec("mkdir -p " .. destdir)
+    cmd.exec("mkdir -p " .. shq(destdir))
     local tmpfile = destdir .. "/source.tar"
 
     -- Handle file:// URLs directly (local tarballs)
     if url:match("^file://") then
         local local_path = url:gsub("^file://", "")
-        cmd.exec("cp " .. local_path .. " " .. tmpfile)
+        cmd.exec("cp " .. shq(local_path) .. " " .. shq(tmpfile))
     else
         http.download_file({ url = url }, tmpfile)
     end
@@ -77,8 +81,8 @@ function M.fetch_tarball(url, expected_hash, destdir)
         )
     end
 
-    cmd.exec("tar -xf " .. tmpfile .. " -C " .. destdir .. " --strip-components=1")
-    cmd.exec("rm -f " .. tmpfile)
+    cmd.exec("tar -xf " .. shq(tmpfile) .. " -C " .. shq(destdir) .. " --strip-components=1")
+    cmd.exec("rm -f " .. shq(tmpfile))
 
     return { actual_hash = actual }
 end
