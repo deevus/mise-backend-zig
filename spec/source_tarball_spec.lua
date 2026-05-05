@@ -1,24 +1,29 @@
-local source    = require("lib.source")
-local cmd_stub  = require("spec.helpers.cmd_stub")
+local source = require("lib.source")
+local cmd_stub = require("spec.helpers.cmd_stub")
 local http_stub = require("spec.helpers.http_stub")
 
 local KNOWN_TEXT = "hello tarball"
-local KNOWN_SHA  = "497951f4b3b69f43be3d0622217da228c77f3125a1e20b397724de4ec61ea4fb"
+local KNOWN_SHA = "497951f4b3b69f43be3d0622217da228c77f3125a1e20b397724de4ec61ea4fb"
 
 describe("lib.source.fetch_tarball", function()
     local rec_cmd, rec_http
     before_each(function()
         os.execute("mkdir -p /tmp/destdir")
-        rec_cmd  = cmd_stub.install({
+        rec_cmd = cmd_stub.install({
             ["shasum -a 256"] = KNOWN_SHA .. "  -",
         })
         rec_http = http_stub.install({
             ["https://example.com/ok.tar.gz"] = function(path)
-                local f = io.open(path, "w"); f:write(KNOWN_TEXT); f:close()
+                local f = io.open(path, "w")
+                f:write(KNOWN_TEXT)
+                f:close()
             end,
         })
     end)
-    after_each(function() rec_cmd.restore(); rec_http.restore() end)
+    after_each(function()
+        rec_cmd.restore()
+        rec_http.restore()
+    end)
 
     it("downloads, computes hash, and extracts", function()
         local result = source.fetch_tarball("https://example.com/ok.tar.gz", nil, "/tmp/destdir")

@@ -38,8 +38,41 @@ function PLUGIN:BackendInstall(ctx)
         source.fetch_tarball(s.url, expected, srcdir)
     end
 
-    -- Resolve which zig to use
-    local ver = build.resolve_zig_version(opts, file.join_path(srcdir, "build.zig.zon"))
+    -- Many real Zig projects ship a `mise.toml`. Without explicit handling, our
+    -- subsequent `mise exec zig@<ver> -- zig build ...` invocations would try
+    -- to evaluate that untrusted config and abort the build before zig runs.
+    -- Default: physically remove the project's mise config files so mise sees
+    -- nothing project-local. Opt-in (`trust_mise_toml = true`) trusts the file
+    -- and uses mise's resolution (which incorporates the project's pin) as a
+    -- new resolution tier between opts.zig_version and minimum_zig_version.
+    if opts.trust_mise_toml then
+        cmd.exec("mise trust " .. shquote(srcdir))
+    else
+        for _, name in ipairs({ "mise.toml", ".mise.toml", "mise.local.toml", ".mise.local.toml" }) do
+            cmd.exec("rm -f " .. shquote(file.join_path(srcdir, name)))
+        end
+    end
+
+    -- Resolve which zig to use. Inline the tier traversal here (rather than
+    -- calling build.resolve_zig_version) because Tier 2 is conditional on the
+    -- trust opt and requires I/O (mise current zig) which doesn't belong in a
+    -- pure helper.
+    local ver = nil
+    if opts.zig_version and opts.zig_version ~= "" then
+        ver = opts.zig_version -- Tier 1
+    elseif opts.trust_mise_toml then
+        -- Tier 2: ask mise what zig is resolved when the project's mise.toml is in scope.
+        local ok, out = pcall(cmd.exec, "mise current zig", { cwd = srcdir })
+        if ok and out then
+            local v = out:match("[%w%.%-]+")
+            if v and v ~= "" then
+                ver = v
+            end
+        end
+    end
+    if ver == nil then
+        ver = build.read_min_zig(file.join_path(srcdir, "build.zig.zon")) -- Tier 3
+    end
     local zig_argv_prefix
     if ver == nil then
         -- Tier 3: probe the active zig. If none is installed at all, surface an actionable error.

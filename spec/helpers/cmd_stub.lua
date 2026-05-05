@@ -23,7 +23,9 @@ function M.install(canned)
     }
     local saved = package.loaded["cmd"]
     package.loaded["cmd"] = stub
-    recorder.restore = function() package.loaded["cmd"] = saved end
+    recorder.restore = function()
+        package.loaded["cmd"] = saved
+    end
     return recorder
 end
 

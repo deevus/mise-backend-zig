@@ -80,6 +80,11 @@ function M.resolve_opts(ctx_options, getenv)
         auto_install_zig = pick_bool("auto_install_zig", "MISE_ZIG_BACKEND_AUTO_INSTALL_ZIG", true),
         bin_path = pick_string("bin_path", "MISE_ZIG_BACKEND_BIN_PATH", "bin"),
         filter_bins = pick_array("filter_bins", "MISE_ZIG_BACKEND_FILTER_BINS"),
+        -- When true, run `mise trust <srcdir>` so the project's mise.toml is
+        -- evaluated normally (env vars, templates, path: plugins). When false
+        -- (default), run `mise trust --ignore <srcdir>` so mise silently skips
+        -- the project's config — safe default for arbitrary downloaded code.
+        trust_mise_toml = pick_bool("trust_mise_toml", "MISE_ZIG_BACKEND_TRUST_MISE_TOML", false),
     }
 end
 
