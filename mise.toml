@@ -4,7 +4,7 @@ MISE_USE_VERSIONS_HOST = "0"
 [tools]
 actionlint = "latest"
 hk = "latest"
-lua = "5.4"
+lua = "5.1"
 lua-language-server = "latest"
 pkl = "latest"
 stylua = "latest"
@@ -21,6 +21,17 @@ run = "hk check"
 description = "Fix linting issues"
 run = "hk fix"
 
+[tasks."test:unit"]
+description = "Run busted unit tests"
+run = '''
+eval "$(luarocks --tree=lua_modules path)"
+exec lua_modules/bin/busted spec/
+'''
+
+[tasks."test:setup"]
+description = "Install busted into project lua_modules"
+run = "luarocks install --tree=lua_modules busted"
+
 [tasks.ci]
 description = "Run all CI checks"
-depends = ["lint", "test"]
+depends = ["lint", "test:unit", "test"]
