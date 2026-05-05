@@ -3,7 +3,7 @@ PLUGIN = { -- luacheck: ignore
     version = "0.1.0",
     description = "mise backend for building and installing Zig projects from git or tarballs",
     author = "deevus",
-    homepage = "https://github.com/deevus/mise-backend-zig",
+    homepage = "https://github.com/deevus/mise-zig",
     license = "MIT",
     notes = {
         "Requires a working Zig toolchain available via mise (e.g. `mise install zig@0.13.0`).",
