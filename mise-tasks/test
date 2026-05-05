@@ -5,11 +5,11 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FIXTURE_TGZ="$REPO_ROOT/test/fixtures/hello.tar.gz"
 
-mise plugin link --force zig "$REPO_ROOT"
+mise plugin link --force zig-build "$REPO_ROOT"
 mise cache clear || true
 
 echo "==> tarball: install + run"
-SPEC="zig:tar+file://$FIXTURE_TGZ"
+SPEC="zig-build:tar+file://$FIXTURE_TGZ"
 mise install "${SPEC}@0.1.0"
 mise exec "${SPEC}@0.1.0" -- hello
 
