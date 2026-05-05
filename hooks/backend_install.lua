@@ -10,20 +10,10 @@ local function looks_like_zig_hash(s)
 end
 
 local function dir_has_entries(path)
-    -- Probe via shell: ls returns nothing for missing/empty dirs. Use 2>/dev/null
+    -- No vfox built-in for "directory non-empty" — fall back to ls. Use 2>/dev/null
     -- so a missing path doesn't throw on cmd.exec implementations that raise on non-zero.
     local cmd = require("cmd")
     local ok, out = pcall(cmd.exec, "ls -1 " .. shquote(path) .. " 2>/dev/null")
-    if not ok then
-        return false
-    end
-    return out:match("%S") ~= nil
-end
-
-local function path_exists(path)
-    -- Robust existence check that doesn't depend on cmd.exec's non-zero-exit behavior.
-    local cmd = require("cmd")
-    local ok, out = pcall(cmd.exec, "ls -d " .. shquote(path) .. " 2>/dev/null")
     if not ok then
         return false
     end
@@ -34,6 +24,8 @@ function PLUGIN:BackendInstall(ctx)
     local s = spec.parse(ctx.tool)
     local opts = build.resolve_opts(ctx.options)
     local cmd = require("cmd")
+    local file = require("file")
+    local log = require("log")
     local srcdir = ctx.download_path -- mise creates and cleans this for us
 
     cmd.exec("mkdir -p " .. shquote(srcdir))
@@ -47,21 +39,32 @@ function PLUGIN:BackendInstall(ctx)
     end
 
     -- Resolve which zig to use
-    local ver = build.resolve_zig_version(opts, srcdir .. "/build.zig.zon")
+    local ver = build.resolve_zig_version(opts, file.join_path(srcdir, "build.zig.zon"))
     local zig_argv_prefix
     if ver == nil then
-        -- Tier 3: emit a one-line stderr note so users aren't surprised by which zig was used.
-        local active = cmd.exec("mise exec zig -- zig version 2>/dev/null"):match("[%d%.]+") or "?"
-        io.stderr:write(
-            string.format(
-                "zig backend: no minimum_zig_version declared and no zig_version opt; using active zig (%s)\n",
-                active
+        -- Tier 3: probe the active zig. If none is installed at all, surface an actionable error.
+        local ok, ver_out = pcall(cmd.exec, "mise exec zig -- zig version 2>/dev/null")
+        if not ok then
+            error(
+                "No Zig installed and the project's build.zig.zon does not declare minimum_zig_version. "
+                    .. "Install one with: mise install zig@<version>, or set the `zig_version` opt."
             )
-        )
+        end
+        local active = ver_out:match("[%d%.]+") or "?"
+        log.info(string.format("no minimum_zig_version declared and no zig_version opt; using active zig (%s)", active))
         zig_argv_prefix = "mise exec zig -- "
     else
         if not opts.auto_install_zig then
-            cmd.exec("mise which zig@" .. shquote(ver)) -- errors if not installed
+            local ok = pcall(cmd.exec, "mise which zig@" .. shquote(ver))
+            if not ok then
+                error(
+                    string.format(
+                        "Zig %s not installed and auto_install_zig is disabled. Install with: mise install zig@%s",
+                        ver,
+                        ver
+                    )
+                )
+            end
         end
         zig_argv_prefix = "mise exec zig@" .. shquote(ver) .. " -- "
     end
@@ -87,23 +90,23 @@ function PLUGIN:BackendInstall(ctx)
     cmd.exec(table.concat(parts, " "))
 
     -- Verify bin_path exists and is non-empty
-    local bin_dir = ctx.install_path .. "/" .. opts.bin_path
+    local bin_dir = file.join_path(ctx.install_path, opts.bin_path)
     if not dir_has_entries(bin_dir) then
         error(build.empty_bin_error(bin_dir))
     end
 
     -- Optional: filter_bins symlinks
     if #opts.filter_bins > 0 then
-        local mise_bins = ctx.install_path .. "/.mise-bins"
+        local mise_bins = file.join_path(ctx.install_path, ".mise-bins")
         cmd.exec("rm -rf " .. shquote(mise_bins))
         cmd.exec("mkdir -p " .. shquote(mise_bins))
         for _, bname in ipairs(opts.filter_bins) do
-            local src = bin_dir .. "/" .. bname
-            local dst = mise_bins .. "/" .. bname
-            if not path_exists(src) then
+            local src = file.join_path(bin_dir, bname)
+            local dst = file.join_path(mise_bins, bname)
+            if not file.exists(src) then
                 error(string.format("filter_bins: %s not found in %s", bname, bin_dir))
             end
-            cmd.exec(string.format("ln -sf %s %s", shquote(src), shquote(dst)))
+            file.symlink(src, dst)
         end
     end
 

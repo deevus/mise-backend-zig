@@ -55,21 +55,26 @@ end
 --- @param destdir string
 --- @return { actual_hash: string }
 function M.fetch_tarball(url, expected_hash, destdir)
-    local http = require("http")
     local cmd = require("cmd")
-
     cmd.exec("mkdir -p " .. shq(destdir))
-    local tmpfile = destdir .. "/source.tar"
 
-    -- Handle file:// URLs directly (local tarballs)
+    -- For file:// URLs, extract directly from the local path (no copy, no tmpfile).
+    -- For http(s) URLs, download to a tmpfile first.
+    local source_path
+    local downloaded_tmpfile = nil
     if url:match("^file://") then
-        local local_path = url:gsub("^file://", "")
-        cmd.exec("cp " .. shq(local_path) .. " " .. shq(tmpfile))
+        source_path = url:gsub("^file://", "")
     else
-        http.download_file({ url = url }, tmpfile)
+        local http = require("http")
+        downloaded_tmpfile = destdir .. "/source.tar"
+        local _, err = http.try_download_file({ url = url }, downloaded_tmpfile)
+        if err then
+            error("Download failed for " .. url .. ": " .. err)
+        end
+        source_path = downloaded_tmpfile
     end
 
-    local actual = sha256_of(tmpfile)
+    local actual = sha256_of(source_path)
     if expected_hash and expected_hash ~= actual then
         error(
             string.format(
@@ -81,8 +86,10 @@ function M.fetch_tarball(url, expected_hash, destdir)
         )
     end
 
-    cmd.exec("tar -xf " .. shq(tmpfile) .. " -C " .. shq(destdir) .. " --strip-components=1")
-    cmd.exec("rm -f " .. shq(tmpfile))
+    cmd.exec("tar -xf " .. shq(source_path) .. " -C " .. shq(destdir) .. " --strip-components=1")
+    if downloaded_tmpfile then
+        cmd.exec("rm -f " .. shq(downloaded_tmpfile))
+    end
 
     return { actual_hash = actual }
 end

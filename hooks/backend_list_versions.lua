@@ -9,6 +9,7 @@ function PLUGIN:BackendListVersions(ctx)
     end
 
     local cmd = require("cmd")
+    local semver = require("semver")
     local out = cmd.exec("git ls-remote --tags " .. sh.shquote(s.url))
     local versions = {}
     for ref in out:gmatch("refs/tags/([^%s%^]+)") do
@@ -17,23 +18,10 @@ function PLUGIN:BackendListVersions(ctx)
         end
     end
     if #versions == 0 then
-        table.insert(versions, "HEAD") -- escape hatch for repos without tags
+        -- escape hatch for repos without semver tags; do not run semver.sort on it
+        return { versions = { "HEAD" } }
     end
-    -- mise requires ascending semver order (oldest -> newest); see backend-plugin docs.
-    table.sort(versions, function(a, b)
-        local function nums(s)
-            local maj, min, pat = s:match("^v?(%d+)%.(%d+)%.(%d+)")
-            return tonumber(maj or 0), tonumber(min or 0), tonumber(pat or 0)
-        end
-        local am, an, ap = nums(a)
-        local bm, bn, bp = nums(b)
-        if am ~= bm then
-            return am < bm
-        end
-        if an ~= bn then
-            return an < bn
-        end
-        return ap < bp
-    end)
-    return { versions = versions }
+    -- mise requires ascending semver order (oldest -> newest); semver.sort handles
+    -- v-prefix and numeric comparison correctly (10.0.0 > 9.6.24).
+    return { versions = semver.sort(versions) }
 end
