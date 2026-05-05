@@ -1,5 +1,6 @@
 local spec = require("lib.spec")
 local sh = require("lib.sh")
+local git = require("lib.git")
 
 function PLUGIN:BackendListVersions(ctx)
     local s = spec.parse(ctx.tool)
@@ -11,12 +12,7 @@ function PLUGIN:BackendListVersions(ctx)
     local cmd = require("cmd")
     local semver = require("semver")
     local out = cmd.exec("git ls-remote --tags " .. sh.shquote(s.url))
-    local versions = {}
-    for ref in out:gmatch("refs/tags/([^%s%^]+)") do
-        if ref:match("^v?%d+%.%d+%.%d+") then
-            table.insert(versions, ref)
-        end
-    end
+    local versions = git.parse_tag_refs(out)
     if #versions == 0 then
         -- escape hatch for repos without semver tags; do not run semver.sort on it
         return { versions = { "HEAD" } }
