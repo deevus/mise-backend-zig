@@ -6,8 +6,8 @@ PLUGIN = { -- luacheck: ignore
     homepage = "https://github.com/deevus/mise-zig",
     license = "MIT",
     notes = {
-        "Requires a working Zig toolchain available via mise (e.g. `mise install zig@0.13.0`).",
+        "Auto-installs zig when the project declares a version (build.zig.zon's minimum_zig_version, the zig_version opt, or — with trust_mise_toml=true — the project's mise.toml).",
+        "Falls back to your active zig only when no version is declared anywhere.",
         "Builds projects with `zig build install --prefix <install_path>`.",
-        "Reads minimum_zig_version from build.zig.zon to pick the compiler.",
     },
 }

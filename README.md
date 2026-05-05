@@ -11,7 +11,11 @@ Given a `build.zig` + `build.zig.zon` project, this backend:
 ## Prerequisites
 
 - **mise** with experimental backends enabled: `mise settings set experimental true` or `MISE_EXPERIMENTAL=1`
-- A working Zig toolchain available via mise (auto-installed if needed)
+- **Zig is auto-installed** when the project supplies a version. Specifically, the backend installs zig for you if any of these are present:
+  - `minimum_zig_version` in the project's `build.zig.zon`
+  - `zig_version` opt (in `mise.toml` or `MISE_ZIG_BACKEND_ZIG_VERSION`)
+  - the project's own `mise.toml` pinning zig, when `trust_mise_toml = true`
+- **You only need to pre-install zig yourself** if none of the above apply — i.e. the project doesn't declare a version anywhere. In that case the backend falls back to your active zig (anything installed via `mise install zig@<ver>` is sufficient — it doesn't need to be globally activated, just installed).
 
 ## Install
 
@@ -101,10 +105,13 @@ Note: array env vars are whitespace-split, which means elements cannot contain s
 The backend implements three hooks:
 
 - **`BackendListVersions`**: For git sources, lists tags matching semver (`v?X.Y.Z`) via `git ls-remote --tags`. For tarballs, returns `["latest"]`.
-- **`BackendInstall`**: Fetches source, resolves Zig version, builds and installs. Zig version resolution follows a tiered approach:
-  1. `ctx.options.zig_version` (from mise.toml)
-  2. `minimum_zig_version` from `build.zig.zon`
-  3. Active zig (set by `mise use zig@...`)
+- **`BackendInstall`**: Fetches source, resolves Zig version, builds and installs. Zig version resolution follows a tiered approach (first match wins):
+  1. `zig_version` opt (`ctx.options` or `MISE_ZIG_BACKEND_ZIG_VERSION`)
+  2. The project's own `mise.toml` zig pin — only when `trust_mise_toml = true` (default `false`). Otherwise the project's `mise.toml` is removed before building.
+  3. `minimum_zig_version` from `build.zig.zon`
+  4. Your active zig (resolved via `mise current zig` from a neutral cwd)
+
+  Tiers 1–3 trigger auto-install of the named zig version (unless `auto_install_zig = false`). Tier 4 uses whatever you already have configured.
 - **`BackendExecEnv`**: Exposes the binary directory on `PATH`, respecting `bin_path` and `filter_bins`.
 
 ### Ref resolution
@@ -138,7 +145,7 @@ mise --debug install zig:tar+file://./test/fixtures/hello.tar.gz@0.1.0
 
 ### Troubleshooting
 
-- **"no minimum_zig_version declared"**: The backend will use your active zig. Set `zig_version` or add `minimum_zig_version` to your `build.zig.zon`.
+- **"no minimum_zig_version declared"**: The backend will use your active zig. Pin a specific version with the `zig_version` opt, add `minimum_zig_version` to your `build.zig.zon`, or set `trust_mise_toml = true` if the project's `mise.toml` already pins zig.
 - **"Hash mismatch"**: The tarball content changed since the hash was recorded (TOFU pin changed). Update the version hash or remove the hash pin.
 - **"No binaries found"**: The build succeeded but no files were installed to `bin_path`. Set `bin_path` if your project installs to a different location, or check that your `build.zig` calls `b.installArtifact()`.
 - **Installation fails on macOS/Linux**: Ensure the Zig compiler version you need is available via mise: `mise install zig@<version>`.
