@@ -87,7 +87,33 @@ function PLUGIN:BackendInstall(ctx)
     for _, arg in ipairs(opts.build_args) do
         table.insert(parts, shquote(arg))
     end
-    cmd.exec(table.concat(parts, " "))
+    -- Use cmd.exec (not os.execute) for the build:
+    --   1. zig's progress display detects TTY and uses ANSI cursor control to
+    --      redraw a status line. That fights mise's own progress UI in non-verbose
+    --      mode, producing visible flashing.
+    --   2. cmd.exec gives the subprocess a non-TTY pipe, so zig disables its
+    --      progress bar and only emits real content (warnings, errors, --summary).
+    --   3. We surface the captured output once via io.stderr:write — direct write
+    --      bypasses mise's logger and goes straight to the user's terminal, so
+    --      it's visible in both verbose and non-verbose mode (unlike log.info,
+    --      which is filtered out by default).
+    -- Append `2>&1` so cmd.exec's capture sees stderr too (zig emits
+    -- warnings, errors, and --summary output to stderr).
+    local build_cmd = table.concat(parts, " ") .. " 2>&1"
+    local ok, build_out = pcall(cmd.exec, build_cmd)
+    if build_out and type(build_out) == "string" and build_out:match("%S") then
+        io.stderr:write(build_out)
+        if not build_out:match("\n$") then
+            io.stderr:write("\n")
+        end
+    end
+    if not ok then
+        -- pcall returns the error message in build_out on failure; cmd.exec
+        -- already includes the captured stderr there, but we've also surfaced
+        -- the captured output above for the success path. Surface a concise
+        -- error so mise's wrapper doesn't double-print zig's output.
+        error("zig build failed")
+    end
 
     -- Verify bin_path exists and is non-empty
     local bin_dir = file.join_path(ctx.install_path, opts.bin_path)
