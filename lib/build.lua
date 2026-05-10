@@ -112,4 +112,19 @@ function M.empty_bin_error(bin_dir)
     )
 end
 
+--- Build the hint shown when a project has no Zig version metadata and the
+--- fallback active Zig compiler fails to build it.
+--- @param active_version string The active Zig version used for the failed build.
+--- @return string user-facing remediation hint
+function M.fallback_zig_failure_hint(active_version)
+    return string.format(
+        "The project did not declare minimum_zig_version and no zig_version opt was set, "
+            .. "so zig-build used active Zig %s. "
+            .. "If this project requires a different compiler, set zig_version for this install "
+            .. "or ask upstream to add minimum_zig_version to build.zig.zon.",
+        active_version or "?"
+    )
+end
+
+
 return M
