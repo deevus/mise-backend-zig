@@ -74,6 +74,8 @@ function PLUGIN:BackendInstall(ctx)
         ver = build.read_min_zig(file.join_path(srcdir, "build.zig.zon")) -- Tier 3
     end
     local zig_argv_prefix
+    local used_active_zig_fallback = false
+    local active_zig_version = nil
     if ver == nil then
         -- Tier 3: probe the active zig. If none is installed at all, surface an actionable error.
         local ok, ver_out = pcall(cmd.exec, "mise exec zig -- zig version 2>/dev/null")
@@ -83,8 +85,14 @@ function PLUGIN:BackendInstall(ctx)
                     .. "Install one with: mise install zig@<version>, or set the `zig_version` opt."
             )
         end
-        local active = ver_out:match("[%d%.]+") or "?"
-        log.info(string.format("no minimum_zig_version declared and no zig_version opt; using active zig (%s)", active))
+        active_zig_version = ver_out:match("[%d%.]+") or "?"
+        used_active_zig_fallback = true
+        log.info(
+            string.format(
+                "no minimum_zig_version declared and no zig_version opt; using active zig (%s)",
+                active_zig_version
+            )
+        )
         zig_argv_prefix = "mise exec zig -- "
     else
         if not opts.auto_install_zig then
@@ -144,22 +152,48 @@ function PLUGIN:BackendInstall(ctx)
     --      bypasses mise's logger and goes straight to the user's terminal, so
     --      it's visible in both verbose and non-verbose mode (unlike log.info,
     --      which is filtered out by default).
-    -- Append `2>&1` so cmd.exec's capture sees stderr too (zig emits
-    -- warnings, errors, and --summary output to stderr).
-    local build_cmd = table.concat(parts, " ") .. " 2>&1"
+    -- Capture through a temp file and append an explicit exit marker. Some
+    -- cmd.exec failures do not expose the child process output through pcall's
+    -- error value, so the wrapper exits successfully and lets Lua decide how to
+    -- report the captured Zig output.
+    local raw_build_cmd = table.concat(parts, " ")
+    local exit_marker = "__MISE_ZIG_BUILD_EXIT__"
+    local build_cmd = "tmpfile=$(mktemp); ("
+        .. raw_build_cmd
+        .. ') >"$tmpfile" 2>&1; status=$?; cat "$tmpfile"; rm -f "$tmpfile"; printf \'\\n'
+        .. exit_marker
+        .. '%s\\n\' "$status"'
     log.info(string.format("building with %szig (in %s)", zig_argv_prefix, srcdir))
     local ok, build_out = pcall(cmd.exec, build_cmd)
-    if build_out and type(build_out) == "string" and build_out:match("%S") then
-        io.stderr:write(build_out)
-        if not build_out:match("\n$") then
-            io.stderr:write("\n")
+    if not ok then
+        if build_out and type(build_out) == "string" and build_out:match("%S") then
+            log.error(build_out)
+        end
+        error("zig build failed")
+    end
+
+    local build_body, build_status = build_out:match("^([%s%S]*)\n" .. exit_marker .. "(%d+)\n?$")
+    if not build_body or not build_status then
+        if build_out and type(build_out) == "string" and build_out:match("%S") then
+            log.error(build_out)
+        end
+        error("zig build failed: missing exit marker")
+    end
+
+    if build_body:match("%S") then
+        if tonumber(build_status) == 0 then
+            io.stderr:write(build_body)
+            if not build_body:match("\n$") then
+                io.stderr:write("\n")
+            end
+        else
+            log.error(build_body)
         end
     end
-    if not ok then
-        -- pcall returns the error message in build_out on failure; cmd.exec
-        -- already includes the captured stderr there, but we've also surfaced
-        -- the captured output above for the success path. Surface a concise
-        -- error so mise's wrapper doesn't double-print zig's output.
+    if tonumber(build_status) ~= 0 then
+        if used_active_zig_fallback then
+            log.info(build.fallback_zig_failure_hint(active_zig_version))
+        end
         error("zig build failed")
     end
 

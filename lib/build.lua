@@ -126,5 +126,4 @@ function M.fallback_zig_failure_hint(active_version)
     )
 end
 
-
 return M
