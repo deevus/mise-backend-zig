@@ -33,6 +33,18 @@ describe("lib.source.fetch_git", function()
         assert.is_truthy(rec.calls[3]:find("--branch 'v1.2.3'", 1, true))
     end)
 
+    it("does not add a second v-prefix when a v-prefixed ref is missing", function()
+        rec.restore()
+        rec = cmd_stub.install({
+            ["--branch 'v1.2.3'"] = { fail = true },
+        })
+        assert.has_error(function()
+            source.fetch_git("https://github.com/foo/bar", "v1.2.3", "/tmp/srcdir")
+        end)
+        assert.are.equal(1, #rec.calls)
+        assert.is_truthy(rec.calls[1]:find("--branch 'v1.2.3'", 1, true))
+    end)
+
     it("clone-then-checkout for SHA-shaped refs", function()
         source.fetch_git("https://github.com/foo/bar", "abc1234567890def1234567890abcdef12345678", "/tmp/srcdir")
         assert.are.equal(2, #rec.calls)

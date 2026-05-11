@@ -94,11 +94,15 @@ function M.fetch_git(url, ref, destdir)
 
     -- try --branch <ref>, fall back to --branch v<ref>
     log_info(string.format("cloning %s @ %s (--depth 1)", url, ref))
-    local ok, _ = pcall(function()
+    local ok, err = pcall(function()
         cmd.exec("git clone --depth 1 --branch " .. shq(ref) .. " " .. shq(url) .. " " .. shq(destdir))
     end)
     if ok then
         return
+    end
+
+    if ref:match("^v") then
+        error(err)
     end
 
     -- Fall back to v-prefixed tag (Zig projects commonly tag as `v0.1.0`).
